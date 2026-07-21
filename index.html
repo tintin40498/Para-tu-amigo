@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🌌 Universo Orbital</title>
+    <title>✨ Universo Gracias</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; user-select:none; }
         html, body {
             width:100%; height:100%;
-            background:#050008;
+            background:#000;
             overflow:hidden;
             touch-action:none;
         }
@@ -22,22 +22,22 @@
             bottom:4vh;
             left:0; right:0;
             text-align:center;
-            color:#666;
-            font-size:0.8rem;
-            font-family:Arial,sans-serif;
-            opacity:0.4;
+            color:rgba(255,255,255,0.15);
+            font-size:0.7rem;
+            font-family: 'Segoe UI', Arial, sans-serif;
             pointer-events:none;
             z-index:10;
-            letter-spacing:2px;
-            text-shadow:0 0 10px rgba(0,0,0,0.8);
+            letter-spacing:4px;
+            text-transform:uppercase;
+            font-weight:300;
+            text-shadow:0 0 30px rgba(0,0,0,0.9);
         }
     </style>
 </head>
 <body>
     <div id="container"></div>
-    <div class="instruccion">✦ arrastrá para mover la cámara · orbita automática ✦</div>
+    <div class="instruccion">✦ ARRASTRÁ PARA EXPLORAR · ÓRBITA AUTOMÁTICA ✦</div>
 
-    <!-- Cargamos Three.js y OrbitControls desde un CDN -->
     <script type="importmap">
         {
             "imports": {
@@ -49,291 +49,232 @@
 
     <script type="module">
         // ================================================================
-        // 1. IMPORTACIONES
+        // 1. IMPORTS Y CONFIG
         // ================================================================
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
         // ================================================================
-        // 2. ESCENA, CÁMARA Y RENDER
+        // 2. ESCENA, CÁMARA, RENDER
         // ================================================================
         const container = document.getElementById('container');
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x050008);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 8);
+        camera.position.set(0, 0, 12);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
+        renderer.toneMappingExposure = 1.5;
         container.appendChild(renderer.domElement);
 
         // ================================================================
-        // 3. CONTROLES (ORBIT)
+        // 3. POSTPROCESADO (BLOOM / GLOW)
+        // ================================================================
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            0.6,   // intensidad
+            0.4,   // radio
+            0.2    // umbral
+        );
+        composer.addPass(bloomPass);
+
+        // ================================================================
+        // 4. CONTROLES DE ÓRBITA
         // ================================================================
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 2.0;
+        controls.autoRotateSpeed = 1.8;
         controls.target.set(0, 0, 0);
+        controls.maxPolarAngle = Math.PI / 2.2;
+        controls.minPolarAngle = 0.2;
         controls.update();
 
         // ================================================================
-        // 4. LUCES
+        // 5. LUCES
         // ================================================================
-        const ambientLight = new THREE.AmbientLight(0x404060);
+        const ambientLight = new THREE.AmbientLight(0x222244);
         scene.add(ambientLight);
 
-        const keyLight = new THREE.DirectionalLight(0xffeedd, 1);
-        keyLight.position.set(5, 5, 5);
-        keyLight.castShadow = true;
-        scene.add(keyLight);
+        const dirLight = new THREE.DirectionalLight(0xffeedd, 2);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
 
-        const fillLight = new THREE.DirectionalLight(0x4466ff, 0.5);
-        fillLight.position.set(-5, 0, 5);
-        scene.add(fillLight);
-
-        const rimLight = new THREE.DirectionalLight(0xff66aa, 0.8);
-        rimLight.position.set(0, -5, -5);
-        scene.add(rimLight);
+        const backLight = new THREE.DirectionalLight(0x4466ff, 1);
+        backLight.position.set(-5, 0, -5);
+        scene.add(backLight);
 
         // ================================================================
-        // 5. CREAR EL TEXTO 3D CON LETRAS DE VERDAD
+        // 6. TEXTO 3D (CON FUENTE REAL)
         // ================================================================
-        // Como no podemos cargar una fuente externa fácilmente desde un CDN,
-        // usamos TextGeometry con la fuente Helvetiker que viene en los ejemplos.
-        // Pero para simplificar y que funcione sin archivos externos,
-        // vamos a usar un enfoque de partículas (Points) con la fuente generada
-        // manualmente (como veníamos haciendo) pero en 3D.
-        // 
-        // Sin embargo, para que sea más impactante, vamos a usar el sistema de
-        // partículas pero con mejor visualización.
+        // Cargamos la fuente Helvetiker que viene con Three.js
+        const loader = new THREE.FontLoader();
+        let textMesh = null;
+        let textGroup = new THREE.Group();
+        scene.add(textGroup);
 
-        // ================================================================
-        // 5.1 GENERAR PUNTOS DEL TEXTO (como antes, pero con más puntos)
-        // ================================================================
-        const FONT = {
-            'A': ['0111110','0111110','0111110','1000001','1111111','1000001','1000001','1000001','1000001'],
-            'C': ['1111110','1111110','1000000','1000000','1000000','1000000','1000000','1111110','1111110'],
-            'E': ['1111111','1111111','1000000','1000000','1111110','1000000','1000000','1111111','1111111'],
-            'G': ['0111111','0111111','1000000','1000000','1001111','1000001','1000001','0111111','0111111'],
-            'I': ['1111111','1111111','0010000','0010000','0010000','0010000','0010000','1111111','1111111'],
-            'M': ['1000001','1100011','1100011','1010101','1010101','1001001','1001001','1000001','1000001'],
-            'O': ['0111110','1111111','1000001','1000001','1000001','1000001','1000001','1111111','0111110'],
-            'P': ['1111110','1111111','1000001','1000001','1111111','1111110','1000000','1000000','1000000'],
-            'R': ['1111110','1111111','1000001','1000001','1111111','1111110','1001000','1001100','1000110'],
-            'S': ['1111111','1111111','1000000','1000000','1111111','1111111','0000001','1111111','1111111'],
-            'T': ['1111111','1111111','0010000','0010000','0010000','0010000','0010000','0010000','0010000'],
-            'U': ['1000001','1000001','1000001','1000001','1000001','1000001','1000001','1111111','0111110'],
-            'B': ['1111110','1111111','1000001','1000001','1111111','1111111','1000001','1111111','1111110'],
-            'D': ['1111110','1111111','1000001','1000001','1000001','1000001','1000001','1111111','1111110'],
-            'F': ['1111111','1111111','1000000','1000000','1111110','1111110','1000000','1111111','1111111'],
-            'H': ['1000001','1000001','1000001','1000001','1111111','1111111','1000001','1000001','1000001'],
-            'L': ['1000000','1000000','1000000','1000000','1000000','1000000','1000000','1111111','1111111'],
-            'N': ['1000001','1100001','1110001','1111001','1001101','1000111','1000011','1000001','1000001'],
-            'Y': ['1000001','1000001','1000001','0100010','0100010','0010100','0010100','0001000','0001000'],
-            ' ': ['0000000','0000000','0000000','0000000','0000000','0000000','0000000','0000000','0000000'],
-        };
+        loader.load('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+            const lines = ['GRACIAS POR', 'SER MI AMIGO', 'PUTA'];
+            const colorPuta = new THREE.Color('#ff0044');
+            const colors = [0xff2a5a, 0xff8800, 0xff44ff, 0x00ffcc, 0xffdd00, 0x00aaff];
 
-        const LINEAS = [
-            'GRACIAS POR',
-            'SER MI AMIGO',
-            'PUTA'
-        ];
+            lines.forEach((text, index) => {
+                const isPuta = (index === 2);
+                const color = isPuta ? colorPuta : new THREE.Color(colors[index % colors.length]);
 
-        const ROWS = 9;
-        const SEP = 2;
-        const SEP_LINEA = 4;
+                const geometry = new THREE.TextGeometry(text, {
+                    font: font,
+                    size: 0.8,
+                    height: 0.15,
+                    curveSegments: 12,
+                    bevelEnabled: true,
+                    bevelThickness: 0.02,
+                    bevelSize: 0.01,
+                    bevelOffset: 0,
+                    bevelSegments: 5
+                });
 
-        function generarPuntos3D(lineas) {
-            const pts = [];
-            let yOffset = 0;
-            for (let li = 0; li < lineas.length; li++) {
-                const texto = lineas[li];
-                let xOffset = 0;
-                let anchoLinea = 0;
-                for (let i = 0; i < texto.length; i++) {
-                    const ch = texto[i];
-                    const g = FONT[ch] || FONT[' '];
-                    anchoLinea += g[0].length + (i < texto.length-1 ? SEP : 0);
-                }
-                const inicioX = -anchoLinea / 2;
-                for (let i = 0; i < texto.length; i++) {
-                    const ch = texto[i];
-                    const g = FONT[ch] || FONT[' '];
-                    const cols = g[0].length;
-                    for (let r = 0; r < ROWS; r++) {
-                        const fila = g[r];
-                        for (let c = 0; c < cols; c++) {
-                            if (fila[c] === '1') {
-                                pts.push({
-                                    x: inicioX + xOffset + c,
-                                    y: yOffset + r,
-                                    z: 0,
-                                    linea: li
-                                });
-                            }
-                        }
-                    }
-                    xOffset += cols + SEP;
-                }
-                yOffset += ROWS + SEP_LINEA;
-            }
-            return pts;
-        }
+                // Centrar cada línea
+                geometry.computeBoundingBox();
+                const box = geometry.boundingBox;
+                const width = box.max.x - box.min.x;
+                const offsetX = -width / 2;
 
-        const puntosRaw = generarPuntos3D(LINEAS);
+                const material = new THREE.MeshStandardMaterial({
+                    color: color,
+                    emissive: color,
+                    emissiveIntensity: isPuta ? 0.8 : 0.4,
+                    roughness: 0.2,
+                    metalness: 0.7,
+                });
 
-        // Escala automática
-        let scale = 1;
-        function calcularEscala() {
-            const anchoTexto = puntosRaw.reduce((max, p) => Math.max(max, Math.abs(p.x)), 0) * 2;
-            const altoTexto = puntosRaw.reduce((max, p) => Math.max(max, Math.abs(p.y)), 0) * 2;
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-            const escalaX = (w * 0.6) / (anchoTexto || 1);
-            const escalaY = (h * 0.6) / (altoTexto || 1);
-            scale = Math.min(escalaX, escalaY, 2.5);
-        }
-        calcularEscala();
-        window.addEventListener('resize', () => {
-            calcularEscala();
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            // Regenerar las partículas con la nueva escala
-            generarParticulas();
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(offsetX, -index * 1.5 + 1.5, 0);
+                textGroup.add(mesh);
+            });
         });
 
         // ================================================================
-        // 5.2 CREAR LAS PARTÍCULAS DEL TEXTO
+        // 7. PARTÍCULAS DE FONDO (UNIVERSO)
         // ================================================================
-        let particleSystem = null;
-        let particleColors = [];
-
-        function generarParticulas() {
-            if (particleSystem) {
-                scene.remove(particleSystem);
-                particleSystem.geometry.dispose();
-                particleSystem.material.dispose();
-            }
-
-            const geometry = new THREE.BufferGeometry();
-            const positions = [];
-            const colors = [];
-            const sizes = [];
-            const colorPuta = new THREE.Color('#ff0044');
-
-            for (const p of puntosRaw) {
-                const x = p.x * scale * 0.8;
-                const y = p.y * scale * 0.8;
-                const z = (Math.random() - 0.5) * 0.5;
-                positions.push(x, y, z);
-
-                // Color según la línea
-                let color;
-                if (p.linea === 2) {
-                    color = colorPuta;
-                } else {
-                    // Color variable para el resto
-                    const hue = (Math.random() * 0.2 + 0.9) % 1;
-                    color = new THREE.Color().setHSL(hue, 0.9, 0.6);
-                }
-                colors.push(color.r, color.g, color.b);
-                sizes.push(0.15 + Math.random() * 0.1);
-            }
-
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-            geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
-
-            const material = new THREE.PointsMaterial({
-                size: 0.12,
-                vertexColors: true,
-                transparent: true,
-                opacity: 0.95,
-                blending: THREE.AdditiveBlending,
-                sizeAttenuation: true,
-                depthWrite: false,
-            });
-
-            particleSystem = new THREE.Points(geometry, material);
-            scene.add(particleSystem);
-        }
-
-        generarParticulas();
-
-        // ================================================================
-        // 6. ESTRELLAS DE FONDO
-        // ================================================================
-        const numStars = 2000;
-        const starGeometry = new THREE.BufferGeometry();
-        const starPositions = new Float32Array(numStars * 3);
-        const starColors = new Float32Array(numStars * 3);
-        for (let i = 0; i < numStars; i++) {
-            const r = 30 + Math.random() * 50;
+        // 7.1 Estrellas lejanas (esfera)
+        const starCount = 3000;
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(starCount * 3);
+        const starSizes = new Float32Array(starCount);
+        for (let i = 0; i < starCount; i++) {
+            const r = 25 + Math.random() * 70;
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
-            starPositions[i*3] = r * Math.sin(phi) * Math.cos(theta);
-            starPositions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
-            starPositions[i*3+2] = r * Math.cos(phi);
-            const brightness = 0.3 + Math.random() * 0.7;
-            starColors[i*3] = brightness;
-            starColors[i*3+1] = brightness * 0.8;
-            starColors[i*3+2] = brightness;
+            starPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+            starPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+            starPos[i*3+2] = r * Math.cos(phi);
+            starSizes[i] = 0.3 + Math.random() * 1.2;
         }
-        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        starGeo.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
 
-        const starMaterial = new THREE.PointsMaterial({
+        const starMat = new THREE.PointsMaterial({
+            color: 0x88aaff,
             size: 0.2,
-            vertexColors: true,
             transparent: true,
-            opacity: 0.8,
+            opacity: 0.7,
             blending: THREE.AdditiveBlending,
             sizeAttenuation: true,
-            depthWrite: false,
+            depthWrite: false
         });
-        const stars = new THREE.Points(starGeometry, starMaterial);
+        const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
 
+        // 7.2 Nube de partículas orbitando alrededor del texto
+        const particleCount = 800;
+        const particleGeo = new THREE.BufferGeometry();
+        const particlePos = new Float32Array(particleCount * 3);
+        const particleColors = new Float32Array(particleCount * 3);
+        for (let i = 0; i < particleCount; i++) {
+            const radius = 3 + Math.random() * 4;
+            const angle = Math.random() * Math.PI * 2;
+            const y = (Math.random() - 0.5) * 6;
+            particlePos[i*3] = Math.cos(angle) * radius;
+            particlePos[i*3+1] = y;
+            particlePos[i*3+2] = Math.sin(angle) * radius;
+            const color = new THREE.Color().setHSL(0.6 + Math.random() * 0.3, 0.8, 0.5);
+            particleColors[i*3] = color.r;
+            particleColors[i*3+1] = color.g;
+            particleColors[i*3+2] = color.b;
+        }
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+        particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.08,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true,
+            depthWrite: false
+        });
+        const particleSystem = new THREE.Points(particleGeo, particleMat);
+        scene.add(particleSystem);
+
         // ================================================================
-        // 7. ANIMACIÓN
+        // 8. ANIMACIÓN
         // ================================================================
-        let time = 0;
+        let clock = new THREE.Clock();
 
         function animate() {
-            time += 0.01;
+            const delta = clock.getDelta();
+            const elapsedTime = performance.now() / 1000;
 
-            // Rotación lenta de las estrellas de fondo
-            stars.rotation.y += 0.0002;
-            stars.rotation.x += 0.0001;
+            // Rotación de estrellas lejanas
+            stars.rotation.y += 0.0001;
+            stars.rotation.x += 0.00005;
 
-            // Pulsar tamaño de las partículas del texto
-            if (particleSystem) {
-                const pulse = 0.08 + 0.04 * Math.sin(time * 2);
-                particleSystem.material.size = pulse;
+            // Rotación de la nube de partículas
+            particleSystem.rotation.y += 0.002;
+            particleSystem.rotation.x = Math.sin(elapsedTime * 0.1) * 0.1;
+
+            // El texto tiene un leve flotación
+            if (textGroup) {
+                textGroup.position.y = Math.sin(elapsedTime * 0.5) * 0.1;
+                textGroup.rotation.z = Math.sin(elapsedTime * 0.3) * 0.02;
             }
 
             controls.update();
-            renderer.render(scene, camera);
+            composer.render();
             requestAnimationFrame(animate);
         }
         animate();
 
         // ================================================================
-        // 8. LOG EN CONSOLA
+        // 9. REDIMENSIONAR
         // ================================================================
-        console.log('🌌 Universo Orbital - Arrastrá para mover la cámara.');
+        window.addEventListener('resize', () => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            composer.setSize(w, h);
+        });
 
+        // ================================================================
+        // 10. LOG
+        // ================================================================
+        console.log('✨ Universo Premium - Hecho con amor y código.');
     </script>
 </body>
 </html>
