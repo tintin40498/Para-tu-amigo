@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🌌 Universo del Amigo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: #050008;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            touch-action: none;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        .instruccion {
+            position: fixed;
+            bottom: 4vh;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: #666;
+            font-size: 0.75rem;
+            font-family: Arial, sans-serif;
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 10;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+    <div class="instruccion">✦ arrastrá para girar el universo ✦</div>
+
+    <script>
+        // ================================================================
+        // 1. FUENTE DE PUNTOS 5x7 (MANUAL)
+        // ================================================================
+        const FONT = {
+            'A': ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+            'C': ['01110', '10001', '10000', '10000', '10000', '10001', '01110'],
+            'E': ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+            'G': ['01110', '10001', '10000', '10111', '10001', '10001', '01110'],
+            'I': ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+            'M': ['10001', '11011', '10101', '10001', '10001', '10001', '10001'],
+            'O': ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+            'P': ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+            'R': ['11110', '10001', '10001', '11110', '10001', '10001', '10001'],
+            'S': ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+            'T': ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+            'U': ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+            'B': ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+            'D': ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+            'F': ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+            'H': ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+            'L': ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+            'N': ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
+            'Y': ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+            ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
+        };
+
+        // ================================================================
+        // 2. TEXTO (3 líneas)
+        // ================================================================
+        const LINEAS = [
+            'GRACIAS POR',
+            'SER MI AMIGO',
+            'PUTA'
+        ];
+
+        // ================================================================
+        // 3. GENERAR PUNTOS
+        // ================================================================
+        function generarPuntos(lineas) {
+            const pts = [];
+            const ROWS = 7;
+            const SEP = 1;
+            const SEP_LINEA = 3;
+
+            let yOffset = 0;
+            for (let li = 0; li < lineas.length; li++) {
+                const texto = lineas[li];
+                let xOffset = 0;
+                // Calcular ancho para centrar
+                let anchoLinea = 0;
+                for (let i = 0; i < texto.length; i++) {
+                    const ch = texto[i];
+                    const g = FONT[ch] || FONT[' '];
+                    anchoLinea += g[0].length + (i < texto.length - 1 ? SEP : 0);
+                }
+                const inicioX = -anchoLinea / 2;
+
+                for (let i = 0; i < texto.length; i++) {
+                    const ch = texto[i];
+                    const g = FONT[ch] || FONT[' '];
+                    const cols = g[0].length;
+                    for (let r = 0; r < ROWS; r++) {
+                        const fila = g[r];
+                        for (let c = 0; c < cols; c++) {
+                            if (fila[c] === '1') {
+                                pts.push({
+                                    x: inicioX + xOffset + c,
+                                    y: yOffset + r,
+                                    z: 0
+                                });
+                            }
+                        }
+                    }
+                    xOffset += cols + SEP;
+                }
+                yOffset += ROWS + SEP_LINEA;
+            }
+            return pts;
+        }
+
+        const puntosRaw = generarPuntos(LINEAS);
+        let scale = 1;
+        const Z_PALABRA = 140;
+
+        // ================================================================
+        // 4. CANVAS
+        // ================================================================
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let W, H;
+
+        function resize() {
+            W = canvas.width = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+            const anchoTexto = puntosRaw.reduce((max, p) => Math.max(max, Math.abs(p.x)), 0) * 2;
+            const altoTexto = puntosRaw.reduce((max, p) => Math.max(max, Math.abs(p.y)), 0) * 2;
+            const escalaX = (W * 0.7) / (anchoTexto || 1);
+            const escalaY = (H * 0.7) / (altoTexto || 1);
+            scale = Math.min(escalaX, escalaY, 2.0);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // ================================================================
+        // 5. ESTRELLAS DEL UNIVERSO
+        // ================================================================
+        const NUM_FONDO = 650;
+        let estrellas = [];
+
+        function estrellaLibre() {
+            return {
+                x: (Math.random() - 0.5) * W * 3,
+                y: (Math.random() - 0.5) * H * 3,
+                z: Math.random() * W,
+                r: Math.random() * 2.2 + 0.4,
+                brilloBase: 0.3 + Math.random() * 0.7,
+                fase: Math.random() * Math.PI * 2,
+                esLetra: false
+            };
+        }
+
+        // Fondo
+        for (let i = 0; i < NUM_FONDO; i++) {
+            estrellas.push(estrellaLibre());
+        }
+
+        // Letras
+        function objetivoDe(e) {
+            const s = scale;
+            return {
+                tx: e.nx * s * 65,
+                ty: e.ny * s * 65,
+                tz: Z_PALABRA + (Math.random() - 0.5) * 6
+            };
+        }
+
+        function crearEstrellaLetra(p, idx) {
+            const e = estrellaLibre();
+            e.esLetra = true;
+            e.r = 2.4 + Math.random() * 1.0;
+            e.nx = p.x;
+            e.ny = p.y;
+            e.idx = idx;
+            e.estado = 'asentado';
+            e.fase = Math.random() * Math.PI * 2;
+            const obj = objetivoDe(e);
+            e.x = obj.tx;
+            e.y = obj.ty;
+            e.z = obj.tz;
+            e.origenX = e.x;
+            e.origenY = e.y;
+            e.origenZ = e.z;
+            return e;
+        }
+
+        // Inicializar letras
+        function reconstruirLetras() {
+            estrellas = estrellas.filter(e => !e.esLetra);
+            for (let i = 0; i < puntosRaw.length; i++) {
+                const e = crearEstrellaLetra(puntosRaw[i], i);
+                estrellas.push(e);
+            }
+        }
+        reconstruirLetras();
+
+        // ================================================================
+        // 6. ROTACIÓN E INERCIA
+        // ================================================================
+        const rot = { yaw: 0, pitch: 0, velYaw: 0, velPitch: 0 };
+        let arrastrando = false;
+        let ultX = 0,
+            ultY = 0;
+        const LIMITE_PITCH = 1.4;
+        const FRICCION = 0.94;
+        let velocidad = 1.2;
+
+        const COLORES_LETRAS = ['#ff2a5a', '#ff8800', '#ff44ff', '#00ffcc', '#ffdd00', '#ff3366'];
+        let tiempo = 0;
+
+        // ================================================================
+        // 7. DIBUJO
+        // ================================================================
+        function dibujar() {
+            tiempo += 0.01;
+            const color1 = COLORES_LETRAS[Math.floor(tiempo * 0.3) % COLORES_LETRAS.length];
+            const color2 = COLORES_LETRAS[(Math.floor(tiempo * 0.3) + 1) % COLORES_LETRAS.length];
+            const t = (tiempo * 0.3) % 1;
+            const colorActual = lerpColor(color1, color2, Math.sin(t * Math.PI) * 0.5 + 0.5);
+            const colorPuta = '#ff0044';
+
+            // Fondo
+            ctx.clearRect(0, 0, W, H);
+            const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 1.2);
+            grad.addColorStop(0, '#0a0a20');
+            grad.addColorStop(0.5, '#100520');
+            grad.addColorStop(1, '#050008');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            const cx = W / 2,
+                cy = H / 2;
+            const cosY = Math.cos(rot.yaw),
+                sinY = Math.sin(rot.yaw);
+            const cosP = Math.cos(rot.pitch),
+                sinP = Math.sin(rot.pitch);
+
+            const ordenadas = [...estrellas].sort((a, b) => b.z - a.z);
+
+            for (const e of ordenadas) {
+                if (!e.esLetra) {
+                    e.z -= velocidad;
+                    if (e.z <= 0) {
+                        e.x = (Math.random() - 0.5) * W * 3;
+                        e.y = (Math.random() - 0.5) * H * 3;
+                        e.z = W + Math.random() * 200;
+                    }
+                } else {
+                    const pulso = Math.sin(e.fase + tiempo * 2) * 0.08 + 1;
+                    e.r = (2.4 + e.idx * 0.001) * pulso;
+                }
+
+                const x1 = e.x * cosY - e.z * sinY;
+                const z1 = e.x * sinY + e.z * cosY;
+                const y2 = e.y * cosP - z1 * sinP;
+                const z2 = e.y * sinP + z1 * cosP;
+
+                if (z2 < 0) continue;
+                const k = 350 / z2;
+                const sx = x1 * k + cx;
+                const sy = y2 * k + cy;
+                if (sx < -50 || sx > W + 50 || sy < -50 || sy > H + 50) continue;
+
+                const profundidad = Math.min(z2 / W, 1);
+                const tam = (1 - profundidad) * e.r * (e.esLetra ? 3.5 : 2.2) + 0.4;
+                const brillo = (1 - profundidad) * (e.esLetra ? 1.0 : 0.6);
+
+                if (e.esLetra) {
+                    const esPuta = (e.ny > 6);
+                    const color = esPuta ? colorPuta : colorActual;
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 25;
+                    ctx.fillStyle = color;
+                } else {
+                    ctx.shadowBlur = 0;
+                    const parpadeo = 0.7 + 0.3 * Math.sin(e.fase + tiempo * 0.5);
+                    ctx.fillStyle = `rgba(220,230,255,${brillo * parpadeo * 0.8})`;
+                }
+                ctx.beginPath();
+                ctx.arc(sx, sy, Math.max(tam, 0.3), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+
+            if (!arrastrando) {
+                rot.yaw += rot.velYaw;
+                rot.pitch += rot.velPitch;
+                rot.pitch = Math.max(-LIMITE_PITCH, Math.min(LIMITE_PITCH, rot.pitch));
+                rot.velYaw *= FRICCION;
+                rot.velPitch *= FRICCION;
+            }
+
+            requestAnimationFrame(dibujar);
+        }
+        dibujar();
+
+        // ================================================================
+        // 8. ARRASTRE
+        // ================================================================
+        function inicioArr(x, y) {
+            arrastrando = true;
+            ultX = x;
+            ultY = y;
+            rot.velYaw = 0;
+            rot.velPitch = 0;
+            canvas.style.cursor = 'grabbing';
+        }
+
+        function moverArr(x, y) {
+            if (!arrastrando) return;
+            const dx = x - ultX;
+            const dy = y - ultY;
+            ultX = x;
+            ultY = y;
+            const factor = 0.009;
+            rot.yaw += dx * factor;
+            rot.pitch += dy * factor;
+            rot.pitch = Math.max(-LIMITE_PITCH, Math.min(LIMITE_PITCH, rot.pitch));
+            rot.velYaw = dx * factor;
+            rot.velPitch = dy * factor;
+        }
+
+        function finArr() {
+            arrastrando = false;
+            canvas.style.cursor = 'grab';
+        }
+
+        canvas.addEventListener('mousedown', (e) => inicioArr(e.clientX, e.clientY));
+        window.addEventListener('mousemove', (e) => moverArr(e.clientX, e.clientY));
+        window.addEventListener('mouseup', finArr);
+
+        canvas.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            inicioArr(t.clientX, t.clientY);
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            const t = e.touches[0];
+            moverArr(t.clientX, t.clientY);
+            e.preventDefault();
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', finArr);
+        canvas.addEventListener('touchcancel', finArr);
+
+        // ================================================================
+        // 9. UTILIDAD: INTERPOLACIÓN DE COLORES
+        // ================================================================
+        function lerpColor(c1, c2, t) {
+            const r1 = parseInt(c1.slice(1, 3), 16),
+                g1 = parseInt(c1.slice(3, 5), 16),
+                b1 = parseInt(c1.slice(5, 7), 16);
+            const r2 = parseInt(c2.slice(1, 3), 16),
+                g2 = parseInt(c2.slice(3, 5), 16),
+                b2 = parseInt(c2.slice(5, 7), 16);
+            const r = Math.round(r1 + (r2 - r1) * t);
+            const g = Math.round(g1 + (g2 - g1) * t);
+            const b = Math.round(b1 + (b2 - b1) * t);
+            return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+        }
+
+        console.log('🌌 Universo del Amigo - Arrastrá y explorá.');
+    </script>
+</body>
+</html>
